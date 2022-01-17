@@ -8,7 +8,9 @@
 #include <iostream>
 #include <fstream>
 
-std::ofstream statFile("stat.txt");
+std::ofstream outFile("global.txt");
+
+class CSwitch;
 
 //random number generator U(0,1)
 double urand()
@@ -54,14 +56,15 @@ struct Config
 	
 struct StateData
 {
-	int occupiedLines;	//number of occupied lines
-		
 	long totalCalls;	//total arrived calls
 	long bloquedCalls;	//bloqued calls
-
-	double reqServiceTime;	//total requested time
+	
 	double carriedServiceTime;	//total carried time
-	double totalHoldingTime;	//total holding time
+	double reqServiceTime;	//total requested time
+	
+	int occupiedLines;	//number of occupied lines
+		
+	//double totalHoldingTime;	//total holding time
 
 } stateData;
 
@@ -73,11 +76,13 @@ struct CallData{
 	
 	double startTime;
 	double serviceTime;
+	 
 }
 
 struct SwitchLink{
 	int numLines;
 	int occupiedLines;
+	double carriedCallsTime;
 	
 	CSwitch* pNextSwitch;
 };
@@ -88,18 +93,22 @@ class CSwitch{
 	long totalCalls;
 	
 	SwitchLink outLink[2];
+	std::ofstream outFile;
 	
 	public:
 	
 	CSwitch(){
-		blockedCalls = totalCalls = 0;
+		/*blockedCalls = totalCalls = 0;
 		outLink[0].numLines = 0;
 		outLink[0].pNextSwitch = NULL;
 		outLink[0].occupiedLines = 0;
 		
 		outLink[1].numLines = 0;
 		outLink[1].pNextSwitch = NULL;
-		outLink[1].occupiedLines = 0;
+		outLink[1].occupiedLines = 0;*/
+		
+		memset(&(outLink), 0, sizeof(outLink));
+		blockedCalls = totalCalls = 0;
 	}
 	
 	CSwitch(char cName, int nLines1, CSwitch* pSwitch1, int nLines2 = 0, CSwitch pSwitch2 = NULL){
@@ -112,6 +121,10 @@ class CSwitch{
 		outLink[1].numLines = nLines2;
 		outLink[1].pNextSwitch = pSwitch2;
 		outLink[1].occupiedLines = 0;
+		
+		char fileName[100];
+		sprintf_s(fileName, "switch_%c_.txt", cName);
+		outFile.open(fileName, std::ofstream::out);
 	}
 
 	bool requestLine(int hop, int route[4]){
@@ -130,8 +143,12 @@ class CSwitch{
 		return false;
 	};
 
-	void releaseLine(int hop, int route[4]){
-	//MISsING
+	void releaseLine(int hop, CallData* pCall, double currentTime){
+	if(outLink[pCall-> route[hop]].pNextSwitch != NULL)
+		outLink[pCall-> route[hop]].pNextSwitch->releaseLine(hop + 1, pCall);
+		outLink[pCall-> route[hop]].occupiedLines--
+		outLink[pCall-> route[hop]].carriedCallsTime += ()
+		//Still missing
 	}
 };
 
@@ -174,34 +191,40 @@ void Setup(CEvent* pEvent)
 	eventManager.AddEvent(new CEvent(nextCallTime, SETUP));
 
 	//current call
-	double serviceTime = expon(config.holdTime);
+	CallData* pNewCall = new CallData;
+	//double serviceTime = expon(config.holdTime);
 
 	//update system state
-	stateData.reqServiceTime += serviceTime;
-	stateData.totalCalls++;
-
+	
+	pNewCall->serviceTime = expon()
+	pNewCall->startTime = pEvent->m_time;
+	pNewCall->entrySwitch = intRand(0, 2);
+	pNewCall->callNumber = 
+	
 	//request line	
-	if (stateData.occupiedLines == config.nLines)
-	{
-		//blocking !! (lost call)
-		stateData.bloquedCalls++;
-	}
-	else
-	{
-		stateData.occupiedLines++;
-		stateData.carriedServiceTime += serviceTime;
+	//stateData.reqServiceTime += serviceTime;
+	//stateData.totalCalls++;
+	stateData.occupiedLines++;
+	stateData.carriedServiceTime += serviceTime;
 		
-		eventManager.AddEvent(new CEvent(pEvent->m_time + serviceTime, RELEASE));
+	eventManager.AddEvent(new CEvent(pEvent->m_time + serviceTime, RELEASE));
+	
+	if(!network[pNewCall->entrySwitch].requestLine(0, pNewCall->route)){
+		stateData.blockedCalls++;
 	}
 
-	statFile<<pEvent->m_time<<'\t'<<pEvent->m_type<<'\t'<< stateData.occupiedLines<<'\t'<< (double)(stateData.bloquedCalls)/stateData.totalCalls<<'\t'<<(double)(stateData.reqServiceTime)/pEvent->m_time<< '\t'<< (double)(stateData.carriedServiceTime)/pEvent->m_time <<'\n';
+	//statFile<<pEvent->m_time<<'\t'<<pEvent->m_type<<'\t'<< stateData.occupiedLines<<'\t'<< (double)(stateData.bloquedCalls)/stateData.totalCalls<<'\t'<<(double)(stateData.reqServiceTime)/pEvent->m_time<< '\t'<< (double)(stateData.carriedServiceTime)/pEvent->m_time <<'\n';
 
 }
 
 
 void Release(CEvent* pEvent)
 {
-	stateData.occupiedLines--;
+	CallData* pCall =(CallData *) (pEvent->GetData());
+	
+	network[pCall->entrySwitch].releaseLine(0, pCall, pEvent->m_time);
+	
+	stateData.carriedServiceTime += (pEvent->m_time)
 }
 
 void UpdateStat(double time)
