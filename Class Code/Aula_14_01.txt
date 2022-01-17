@@ -1,0 +1,249 @@
+// Example ST.cpp : This file contains the 'main' function. Program execution begins and ends there.
+//
+
+#include "pch.h"
+#include <iostream>
+#include "CEvent.h"
+#include <list>
+#include <iostream>
+#include <fstream>
+
+std::ofstream statFile("stat.txt");
+
+//random number generator U(0,1)
+double urand()
+{
+	double u;
+	do {
+		u = ((double)rand()) / (double)RAND_MAX;
+	} while (u == 0.0 || u >= 1.0);
+	return u;
+}
+
+//exponential number generation
+double expon(double avg)
+{
+	return (double)(-avg * log(urand()));
+}
+
+//simultaion time
+double simTime;
+//event manager
+CEventManager eventManager;
+
+
+//global simulation data
+struct Config
+{
+	double 	holdTime;	//call average holding time
+	double 	bhca;		//call  busy hour rate
+	int 	nLines;		//system number of lines
+	
+	//Network line capacity
+	int nLines_A_C = 40;
+	int nLines_A_D = 40;
+	int nLines_B_D = 40;
+	int nLines_D_E = 40;
+	int nLines_D_F = 40;
+	int nLines_C_E = 40;
+	int nLines_E_F = 40;
+	int nLines_F_CC = 810;
+	
+	double 	simTime;	//simulation time
+} config;
+	
+struct StateData
+{
+	int occupiedLines;	//number of occupied lines
+		
+	long totalCalls;	//total arrived calls
+	long bloquedCalls;	//bloqued calls
+
+	double reqServiceTime;	//total requested time
+	double carriedServiceTime;	//total carried time
+	double totalHoldingTime;	//total holding time
+
+} stateData;
+
+class CSwitch;
+
+struct CallData{
+	int entrySwitch;
+	int route[4];
+	
+	double startTime;
+	double serviceTime;
+}
+
+struct SwitchLink{
+	int numLines;
+	int occupiedLines;
+	
+	CSwitch* pNextSwitch;
+};
+
+class CSwitch{
+	char name;
+	long blockedCalls;
+	long totalCalls;
+	
+	SwitchLink outLink[2];
+	
+	public:
+	
+	CSwitch(){
+		blockedCalls = totalCalls = 0;
+		outLink[0].numLines = 0;
+		outLink[0].pNextSwitch = NULL;
+		outLink[0].occupiedLines = 0;
+		
+		outLink[1].numLines = 0;
+		outLink[1].pNextSwitch = NULL;
+		outLink[1].occupiedLines = 0;
+	}
+	
+	CSwitch(char cName, int nLines1, CSwitch* pSwitch1, int nLines2 = 0, CSwitch pSwitch2 = NULL){
+		name = cName;
+		blockedCalls = totalCalls = 0;
+		outLink[0].numLines = nLines1;
+		outLink[0].pNextSwitch = pSwitch1;
+		outLink[0].occupiedLines = 0;
+		
+		outLink[1].numLines = nLines2;
+		outLink[1].pNextSwitch = pSwitch2;
+		outLink[1].occupiedLines = 0;
+	}
+
+	bool requestLine(int hop, int route[4]){
+		for(int i=0; i < nLinks; i++){
+		
+		if(outLink[i].occupiedLines < outLink[i].numLines){
+		
+			if(outLink[i].pNextSwitch != NULL){
+			
+				if(!outLink[i].pNextSwitch -> requestLine(hop+1, route)) return false;
+			}
+			outLink[i].occupiedLines++;
+			route[hop] = i;
+			return true;
+		}
+		return false;
+	};
+
+	void releaseLine(int hop, int route[4]){
+	//MISsING
+	}
+};
+
+CSwitch network[6];
+
+
+void Initialize()
+{
+
+	//Network initialization
+	network[5] = CSwitch('F', config.nLines_F_CC, NULL);
+	network[4] = CSwitch('E', config.nLines_E_F, &(network[5]));
+	network[3] = CSwitch('D', config.nLines_D_F, &(network[5]), config.nLines_D_E, &(network[4]));
+	network[2] = CSwitch('C', config.nLines_C_E, &(network[4]));
+	network[1] = CSwitch('B', config.nLines_B_D, &(network[3]));
+	network[0] = CSwitch('A', config.nLines_A_D, &(network[3]), config.nLines_A_C, &(network[2]));
+	
+	//Simulation
+	simTime = 0;
+	config.simTime = 24 * 60 * 60;
+	//traffic configuration
+	config.bhca = 500;
+	config.holdTime = 140;
+	config.nLines = 10;
+
+	//state data initialization	
+	memset(&stateData, 0, sizeof(stateData));
+	
+	//Add first events
+	eventManager.Reset();
+	eventManager.AddEvent(new CEvent(expon(3600.0 / config.bhca), SETUP));
+};
+
+
+//SETUP Event
+void Setup(CEvent* pEvent)
+{
+	//compute and schedule next call
+	double nextCallTime = pEvent->m_time + expon(3600.0 / config.bhca);
+	eventManager.AddEvent(new CEvent(nextCallTime, SETUP));
+
+	//current call
+	double serviceTime = expon(config.holdTime);
+
+	//update system state
+	stateData.reqServiceTime += serviceTime;
+	stateData.totalCalls++;
+
+	//request line	
+	if (stateData.occupiedLines == config.nLines)
+	{
+		//blocking !! (lost call)
+		stateData.bloquedCalls++;
+	}
+	else
+	{
+		stateData.occupiedLines++;
+		stateData.carriedServiceTime += serviceTime;
+		
+		eventManager.AddEvent(new CEvent(pEvent->m_time + serviceTime, RELEASE));
+	}
+
+	statFile<<pEvent->m_time<<'\t'<<pEvent->m_type<<'\t'<< stateData.occupiedLines<<'\t'<< (double)(stateData.bloquedCalls)/stateData.totalCalls<<'\t'<<(double)(stateData.reqServiceTime)/pEvent->m_time<< '\t'<< (double)(stateData.carriedServiceTime)/pEvent->m_time <<'\n';
+
+}
+
+
+void Release(CEvent* pEvent)
+{
+	stateData.occupiedLines--;
+}
+
+void UpdateStat(double time)
+{
+	
+}
+
+void Run()
+{
+	CEvent* pEvent = NULL;
+
+	pEvent = eventManager.NextEvent();
+
+	while (pEvent->m_time < config.simTime)
+	{
+		switch (pEvent->m_type)
+		{
+		case SETUP:
+			Setup(pEvent);
+			break;
+		case RELEASE:
+			Release(pEvent);
+			break;
+		}
+		delete pEvent;
+		pEvent = eventManager.NextEvent();
+	};
+	delete pEvent;
+}
+
+
+int main()
+{
+    std::cout << "exemplo aplicação ST\n"; 
+
+	Initialize();
+
+	Run();
+
+}
+
+
+
+
+
