@@ -234,7 +234,7 @@ void Release(CEvent* pEvent)
 	CallData* pCall =(CallData *) (pEvent->GetData());
 	
 	network[pCall->entrySwitch].releaseLine(0, pCall, pEvent->m_time);
-	for(int i = 0 ; i < sizeof(network); i++){
+	for(int i = 0 ; i < 6; i++){
 		network[i].writeResulsts(pEvent->m_time);
 	}
 	
