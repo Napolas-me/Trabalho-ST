@@ -8,7 +8,7 @@
 #include <iostream>
 #include <fstream>
 
-std::ofstream outFile("global.txt");
+std::ofstream outFile("outGlobalFile.txt");
 
 class CSwitch;
 
@@ -147,8 +147,19 @@ class CSwitch{
 	if(outLink[pCall-> route[hop]].pNextSwitch != NULL)
 		outLink[pCall-> route[hop]].pNextSwitch->releaseLine(hop + 1, pCall);
 		outLink[pCall-> route[hop]].occupiedLines--
-		outLink[pCall-> route[hop]].carriedCallsTime += ()
-		//Still missing
+		outLink[pCall-> route[hop]].carriedCallsTime += (currentTime - pCall->startTime)
+	}
+	
+	void writeResulsts(double time)
+	{
+		outFile << time << '\t' <<
+		totalCalls << '\t' << blockedCalls <<
+		((double) blockedCalls)/ totalCalls << '\t';
+		for(int i = 0; i < nLinks, i++){
+			outFile << outLink[i].occupiedLines << '\t'<<
+			(float) (outLink[i].carriedCallsTime) / time << '\t';
+		}
+		outFile << '\n';
 	}
 };
 
@@ -214,7 +225,7 @@ void Setup(CEvent* pEvent)
 	}
 
 	//statFile<<pEvent->m_time<<'\t'<<pEvent->m_type<<'\t'<< stateData.occupiedLines<<'\t'<< (double)(stateData.bloquedCalls)/stateData.totalCalls<<'\t'<<(double)(stateData.reqServiceTime)/pEvent->m_time<< '\t'<< (double)(stateData.carriedServiceTime)/pEvent->m_time <<'\n';
-
+	//MISSING
 }
 
 
@@ -223,6 +234,9 @@ void Release(CEvent* pEvent)
 	CallData* pCall =(CallData *) (pEvent->GetData());
 	
 	network[pCall->entrySwitch].releaseLine(0, pCall, pEvent->m_time);
+	for(int i = 0 ; i < sizeof(network); i++){
+		network[i].writeResulsts(pEvent->m_time);
+	}
 	
 	stateData.carriedServiceTime += (pEvent->m_time)
 }
