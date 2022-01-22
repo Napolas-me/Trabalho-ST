@@ -47,7 +47,7 @@ public:
         blockedCalls = totalCalls = 0;
     };
 
-    CSwitch(char cName, int nlines1, CSwitch* pSwitch1, int nlines2=0, CSwitch* pSwitch2=NULL) {
+    CSwitch(char cName, int nlines1, CSwitch* pSwitch1, int nlines2 = 0, CSwitch* pSwitch2 = NULL) {
         name = cName;
 
         nLinks = (nlines2 == 0 ? 1 : 2);
@@ -67,15 +67,15 @@ public:
         sprintf_s(fileName, "switch_%c_.txt", cName);
         outFile.open(fileName, std::ofstream::out);
     }
-    
+
     bool  RequestLine(int hop, int route[4]) {
         totalCalls++;
         for (int i = 0; i < nLinks; i++)
         {
             if (outLinks[i].occupiedLines < outLinks[i].numLines)
             {
-                if(outLinks[i].pNextSwitch != NULL)
-                    if (! outLinks[i].pNextSwitch->RequestLine(hop+1, route)) {
+                if (outLinks[i].pNextSwitch != NULL)
+                    if (!outLinks[i].pNextSwitch->RequestLine(hop + 1, route)) {
                         return false;
                     }
                 outLinks[i].occupiedLines++;
@@ -87,7 +87,7 @@ public:
         return false;
     };
 
-    void  ReleaseLine(int hop, CallData* pCall, double currentTime) 
+    void  ReleaseLine(int hop, CallData* pCall, double currentTime)
     {
         if (outLinks[pCall->route[hop]].pNextSwitch != NULL)
             outLinks[pCall->route[hop]].pNextSwitch->ReleaseLine(hop + 1, pCall, currentTime);
@@ -103,7 +103,7 @@ public:
         for (int i = 0; i < nLinks; i++)
         {
             outFile << outLinks[i].occupiedLines << '\t' <<
-                outLinks[i].carriedCallsTime / time <<'\t';
+                outLinks[i].carriedCallsTime / time << '\t';
         }
         outFile << '\n';
     }
@@ -182,9 +182,9 @@ void Initialize()
     network[0] = CSwitch('A', config.nLines_A_D, &(network[3]), config.nLines_A_C, &(network[2]));
 
     //configuration initialization
-    config.bhca     = 2000;
-    config.holdTime = 500;
-    config.nLines = 55;
+    config.bhca = 1080; //2000      (1 (35%) -> 378   2 (30%) -> 324     3 (35%) -> 378)
+    config.holdTime = 190;  //500
+    config.nLines = 70;     //55
 
     config.simulationTime = 24 * 60 * 60; //24 hours
 
@@ -199,8 +199,8 @@ void Initialize()
 void Setup(CEvent* pEvent)
 {
     //schedule next setup event
-    eventManager.AddEvent(new CEvent(pEvent->m_time + expon(3600.0/config.bhca), SETUP));
-    
+    eventManager.AddEvent(new CEvent(pEvent->m_time + expon(3600.0 / config.bhca), SETUP));
+
     //current call
     CallData* pNewCall = new CallData;
 
@@ -215,7 +215,8 @@ void Setup(CEvent* pEvent)
     if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route))
     {
         eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
-    } else {
+    }
+    else {
         stateData.blockedCalls++;
     }
     outGlobalFile << pEvent->m_time << '\t' <<
@@ -227,8 +228,8 @@ void Setup(CEvent* pEvent)
 
 void Release(CEvent* pEvent)
 {
-    CallData* pCall = (CallData *) (pEvent->GetData());
-   
+    CallData* pCall = (CallData*)(pEvent->GetData());
+
     network[pCall->entrySwitch].ReleaseLine(0, pCall, pEvent->m_time);
     for (int i = 0; i < 6; i++)
         network[i].WriteResults(pEvent->m_time);
@@ -240,7 +241,7 @@ void Run()
     CEvent* pEvent = NULL;
     pEvent = eventManager.NextEvent();
 
-    while (pEvent->m_time < config.simulationTime) 
+    while (pEvent->m_time < config.simulationTime)
     {
         switch (pEvent->m_type)
         {
