@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include "CEvent.h"
+#include <boost/circular_buffer.hpp>
 
 CEventManager eventManager;
 
@@ -170,6 +171,20 @@ int intRand(int min, int max)
     return min + (u * (max - min + 1));
 }
 
+//returns the starting channel based on a percentage given by the professor(c1:35 c2:30 c3:35)
+int channelSelect() {
+
+    int perc = intRand(0, 100);
+    int channel2 = 30;
+
+    if (perc <= channel2) return 1;
+    else {
+        int fifthyf = intRand(0, 1);
+        if (fifthyf == 0) return 0;
+        else return 2;
+    }
+}
+
 
 void Initialize()
 {
@@ -182,8 +197,8 @@ void Initialize()
     network[0] = CSwitch('A', config.nLines_A_D, &(network[3]), config.nLines_A_C, &(network[2]));
 
     //configuration initialization
-    config.bhca     = 2000;
-    config.holdTime = 500;
+    config.bhca     = 2000;//1080
+    config.holdTime = 500;//190
     config.nLines = 55;
 
     config.simulationTime = 24 * 60 * 60; //24 hours
@@ -206,7 +221,7 @@ void Setup(CEvent* pEvent)
 
     pNewCall->serviceTime = expon(config.holdTime);//generate call duration
     pNewCall->startTime = pEvent->m_time;
-    pNewCall->entrySwitch = intRand(0, 2);
+    pNewCall->entrySwitch = channelSelect();//intRand(0, 2);//geraçao de chamadas
     pNewCall->callNumber = stateData.totalCalls;
 
     stateData.totalCalls++;
