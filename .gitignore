@@ -23,5 +23,7 @@
 hs_err_pid*
 
 .vs/
+x64/
+Debug/
 
 
