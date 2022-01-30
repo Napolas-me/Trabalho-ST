@@ -8,13 +8,22 @@ CEventManager eventManager;
 
 std::ofstream outGlobalFile("globalResults.txt");
 
-struct CallData;
+struct CallData
+{
+    long callNumber;
+    int entrySwitch;
+    int route[4];
+
+    double startTime;
+    double serviceTime;
+};
 
 class CallCenter {
     int operadores;
     int Numero_Fila_espera;
-    int idxincremento;
+    int idxincremento = 0;
     CallData** Buffer;
+    boolean callCenter = false;
 
 public:
     CallCenter(int NumOperadores) {
@@ -22,22 +31,36 @@ public:
         this->Numero_Fila_espera = 0;
         this->idxincremento = 0;
     }
+
+    void DecrementarOperadores() {
+        operadores--;
+        if(operadores < 0)
+            Numero_Fila_espera++;
+    }
+
+    void IncrementarOperadores() {
+        operadores++;
+    }
     int getEspera() {
         return Numero_Fila_espera;
     }
 
+    int getOperadores() {
+        return operadores;
+    }
+
     void bPush(CallData* data) {
+      
         if (Numero_Fila_espera == 0)
         {
             *Buffer = (CallData*)malloc(sizeof(*Buffer));
             Buffer[Numero_Fila_espera] = data;
-            Numero_Fila_espera++;
         }
         else {
             *Buffer = (CallData*)realloc(*Buffer, sizeof(CallData));
             Buffer[Numero_Fila_espera] = data;
-            Numero_Fila_espera++;
         }
+        Numero_Fila_espera++;
     }
 
     CallData* bPull() {
@@ -54,15 +77,7 @@ public:
 
 class CSwitch;
 
-struct CallData
-{
-    long callNumber;
-    int entrySwitch;
-    int route[4];
 
-    double startTime;
-    double serviceTime;
-};
 
 struct SwitchLink
 {
@@ -112,29 +127,27 @@ public:
         outFile.open(fileName, std::ofstream::out);
     }
 
-     int RequestLine(int hop, int route[4]) {
+     boolean RequestLine(int hop, int route[4]) {
         totalCalls++;
-        for (int i = 0; i < nLinks; i++)
+        int i;
+        for (i = 0; i < nLinks; i++)
         {
             if (outLinks[i].occupiedLines < outLinks[i].numLines)
             {
                 if (outLinks[i].pNextSwitch != NULL) {
-                    if (outLinks[i].pNextSwitch->RequestLine(hop + 1, route) == 1) {
-                        return 0;
+                    if (!(outLinks[i].pNextSwitch->RequestLine(hop + 1, route))) {  
+                        return false;
                     }
                 }
-                else {// Switch F
-                    outLinks[i].occupiedLines++;
-                    return -1;
-                }
-                    
+     
                 outLinks[i].occupiedLines++;
                 route[hop] = i;
-                return 1;
+                return  true;
             }
         }
-        blockedCalls++;
-        return 0;
+        
+        blockedCalls++; 
+        return false;
     };
 
     void  ReleaseLine(int hop, CallData* pCall, double currentTime)
@@ -160,8 +173,8 @@ public:
     }
 };
 
-CSwitch network[6];
-CallCenter callcenter;
+
+///CallCenter callcenter;
 
 struct Config
 {
@@ -182,8 +195,11 @@ struct Config
     //simulation
     double simulationTime;
 
-    int nOperadores = 80;
+    int nOperadores = 20;
 } config;
+
+CallCenter callcenter = CallCenter(config.nOperadores);
+CSwitch network[6];
 
 struct StateData
 {
@@ -241,7 +257,7 @@ int channelSelect() {
 
 void Initialize()
 {
-    callcenter = CallCenter(config.nOperadores);
+    
     
     //Network initialization
     network[5] = CSwitch('F', config.nLines_F_CC, NULL);
@@ -282,17 +298,31 @@ void Setup(CEvent* pEvent)
     stateData.totalCalls++;
     stateData.reqServiceTime += pNewCall->serviceTime;
 
-    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route) == 1)
+
+    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route))
     {
-        eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
-    }
-    else if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route) == -1)
-    {
-        if(callcenter.getEspera()) callcenter.bPush(pNewCall);
-        else {
-            CallData* call = callcenter.bPull();
-            eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
+        if (callcenter.getEspera() > 0) { 
+            
+            callcenter.bPush(pNewCall);
+           // CallData * call = callcenter.bPull();
+           // callcenter.DecrementarOperadores();
+            //eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
         }
+
+        if (callcenter.getOperadores() > 0) {
+            if (callcenter.getEspera() > 0) {
+               
+                CallData* call = callcenter.bPull();
+                callcenter.DecrementarOperadores();
+                eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
+            }
+            else{
+                callcenter.DecrementarOperadores();
+                eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
+            }
+        }
+
+       
     }
     else {
         stateData.blockedCalls++;
@@ -300,18 +330,22 @@ void Setup(CEvent* pEvent)
     outGlobalFile << pEvent->m_time << '\t' <<
         stateData.reqServiceTime / pEvent->m_time << '\t' <<
         stateData.carriedServiceTime / pEvent->m_time << '\t' <<
-        (float)(stateData.blockedCalls) / stateData.totalCalls << '\n';
+        (float)(stateData.blockedCalls) / stateData.totalCalls << '\t' <<
+        callcenter.getEspera() << '\t' <<
+        callcenter.getOperadores() << '\n';
 }
 
 
 void Release(CEvent* pEvent)
 {
-    CallData* pCall = (CallData*)(pEvent->GetData());
+            callcenter.IncrementarOperadores();
+            CallData* pCall = (CallData*)(pEvent->GetData()); 
+            network[pCall->entrySwitch].ReleaseLine(0, pCall, pEvent->m_time);
+            for (int i = 0; i < 6; i++)
+                network[i].WriteResults(pEvent->m_time);
+            stateData.carriedServiceTime += (pEvent->m_time - pCall->startTime);
+    
 
-    network[pCall->entrySwitch].ReleaseLine(0, pCall, pEvent->m_time);
-    for (int i = 0; i < 6; i++)
-        network[i].WriteResults(pEvent->m_time);
-    stateData.carriedServiceTime += (pEvent->m_time - pCall->startTime);
 }
 
 void Run()
