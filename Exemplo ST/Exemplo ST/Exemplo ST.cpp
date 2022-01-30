@@ -3,13 +3,54 @@
 #include <iostream>
 #include <fstream>
 #include "CEvent.h"
-#include <boost/circular_buffer.hpp> // to install this use the following command: vcpkg install boost-circular-buffer:x64-windows
-                                     // vcpkg must be installed
+#include <stdlib.h>
 CEventManager eventManager;
-#define B_MAX_SIZE 1000
 
 std::ofstream outGlobalFile("globalResults.txt");
-boost::circular_buffer<int> cb(B_MAX_SIZE);
+
+struct CallData;
+
+class CallCenter {
+    int operadores;
+    int Numero_Fila_espera;
+    int idxincremento;
+    CallData** Buffer;
+
+public:
+    CallCenter(int NumOperadores) {
+        this->operadores = NumOperadores;
+        this->Numero_Fila_espera = 0;
+        this->idxincremento = 0;
+    }
+    int getEspera() {
+        return Numero_Fila_espera;
+    }
+
+    void bPush(CallData* data) {
+        if (Numero_Fila_espera == 0)
+        {
+            *Buffer = (CallData*)malloc(sizeof(*Buffer));
+            Buffer[Numero_Fila_espera] = data;
+            Numero_Fila_espera++;
+        }
+        else {
+            *Buffer = (CallData*)realloc(*Buffer, sizeof(CallData));
+            Buffer[Numero_Fila_espera] = data;
+            Numero_Fila_espera++;
+        }
+    }
+
+    CallData* bPull() {
+        
+        CallData* ret = Buffer[idxincremento];
+
+        Numero_Fila_espera--;
+        free(&Buffer[idxincremento]);
+        idxincremento++;
+
+        return ret;
+    }
+};
 
 class CSwitch;
 
@@ -71,23 +112,29 @@ public:
         outFile.open(fileName, std::ofstream::out);
     }
 
-    bool  RequestLine(int hop, int route[4]) {
+     int RequestLine(int hop, int route[4]) {
         totalCalls++;
         for (int i = 0; i < nLinks; i++)
         {
             if (outLinks[i].occupiedLines < outLinks[i].numLines)
             {
-                if (outLinks[i].pNextSwitch != NULL)
-                    if (!outLinks[i].pNextSwitch->RequestLine(hop + 1, route)) {
-                        return false;
+                if (outLinks[i].pNextSwitch != NULL) {
+                    if (outLinks[i].pNextSwitch->RequestLine(hop + 1, route) == 1) {
+                        return 0;
                     }
+                }
+                else {// Switch F
+                    outLinks[i].occupiedLines++;
+                    return -1;
+                }
+                    
                 outLinks[i].occupiedLines++;
                 route[hop] = i;
-                return true;
+                return 1;
             }
         }
         blockedCalls++;
-        return false;
+        return 0;
     };
 
     void  ReleaseLine(int hop, CallData* pCall, double currentTime)
@@ -114,6 +161,7 @@ public:
 };
 
 CSwitch network[6];
+CallCenter callcenter;
 
 struct Config
 {
@@ -133,6 +181,8 @@ struct Config
     int nLines_F_CC = 810;
     //simulation
     double simulationTime;
+
+    int nOperadores = 80;
 } config;
 
 struct StateData
@@ -191,6 +241,8 @@ int channelSelect() {
 
 void Initialize()
 {
+    callcenter = CallCenter(config.nOperadores);
+    
     //Network initialization
     network[5] = CSwitch('F', config.nLines_F_CC, NULL);
     network[4] = CSwitch('E', config.nLines_E_F, &(network[5]));
@@ -230,9 +282,17 @@ void Setup(CEvent* pEvent)
     stateData.totalCalls++;
     stateData.reqServiceTime += pNewCall->serviceTime;
 
-    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route))
+    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route) == 1)
     {
         eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
+    }
+    else if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route) == -1)
+    {
+        if(callcenter.getEspera()) callcenter.bPush(pNewCall);
+        else {
+            CallData* call = callcenter.bPull();
+            eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
+        }
     }
     else {
         stateData.blockedCalls++;
