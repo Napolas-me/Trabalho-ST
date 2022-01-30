@@ -26,5 +26,8 @@ hs_err_pid*
 Exemplo ST/.vs/
 x64/
 Debug/
+.suo
+CL.write.1.tlog
+link.write.1.tlog
 
 
