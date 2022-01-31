@@ -18,22 +18,53 @@ struct CallData
     double serviceTime;
 };
 
+typedef struct lNode {
+    struct lNode* next;
+    CallData* calldata;
+} LNode;
+
+void lInsTail(LNode** hp, LNode** tp, CallData* call) {
+    LNode* n = (lNode*)malloc(sizeof *n);
+    n->calldata = call;
+    n->next = NULL;
+    if (*hp == NULL)
+        *hp = n;
+    else
+        (*tp)->next = n;
+    *tp = n;
+}
+
+int lRemHead(LNode** hp, LNode** tp, CallData** call) {
+    if (*hp == NULL)
+        return 0;
+    LNode* p = *hp;
+    *call = p->calldata;
+    *hp = p->next;
+    if (*hp == NULL)
+        *tp = NULL;
+    free(p);
+    return 1;
+}
+
 class CallCenter {
+
     int operadores;
     int Numero_Fila_espera;
-    int idxPull = 0;
-    int idxPush = 0;
-    CallData* Buffer = new CallData;
-   // boolean callCenter = false;
+    LNode* head = NULL;
+    LNode* tail = NULL;
+    //int idxPull = 0;
+    //int idxPush = 0;
+    //CallData* Buffer = new CallData;
+    //boolean callCenter = false;
 
 public:
     CallCenter(int NumOperadores) {
         this->operadores = NumOperadores;
         this->Numero_Fila_espera = 0;
-        this->idxPull = 0;
-        this->idxPush = 0;
+        //this->idxPull = 0;
+        //this->idxPush = 0;
     }
-
+    
     void DecrementarOperadores() {
         operadores--;
     }
@@ -51,28 +82,32 @@ public:
 
     void bPush(CallData* data) {
       
-        if (Numero_Fila_espera == 0)
+        /*if (Numero_Fila_espera == 0)
         {
-            Buffer = (CallData*)malloc(sizeof(CallData));
-            Buffer[idxPush] = data;
+            //Buffer = (CallData*)malloc(sizeof(CallData));
+            //Buffer[idxPush] = data;
         }
         else {
             Buffer = (CallData*)realloc(Buffer, sizeof(CallData) * (idxPush - idxPull));
             *Buffer[idxPush] = data;
-        }
-        idxPush++;
+        }*/
+        //idxPush++;
+
+        lInsTail(&head, &tail, data);
         Numero_Fila_espera++;
     }
 
 
     CallData* bPull() {
-        Numero_Fila_espera--;
-        
-        CallData* ret = &(*Buffer[idxPull]);
-        free(Buffer[idxPull]);
-        idxPull++;
 
-        return ret;
+        CallData* data;
+        Numero_Fila_espera--;
+        lRemHead(&head, &tail, &data);
+        /*CallData* ret = &(*Buffer[idxPull]);
+        free(Buffer[idxPull]);
+        idxPull++;*/
+
+        return data;
     }
 };
 
@@ -194,7 +229,7 @@ struct Config
     //simulation
     double simulationTime;
 
-    int nOperadores = 30;
+    int nOperadores = 70;
 } config;
 
 CallCenter callcenter = CallCenter(config.nOperadores);
@@ -302,7 +337,7 @@ void Setup(CEvent* pEvent)
         if (callcenter.getOperadores() > 0) {
             if (callcenter.getEspera() > 0) {
 
-                CallData* call = callcenter.bPull();
+                CallData *call = callcenter.bPull();
                 callcenter.DecrementarOperadores();
                 eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
             }
