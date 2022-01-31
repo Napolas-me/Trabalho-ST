@@ -6,8 +6,8 @@
 
 CEventManager eventManager;
 
-std::ofstream outGlobalFile("globalResults.txt");
 
+std::ofstream dadosSistema("dadosSistema.txt");
 struct CallData{
     long callNumber;
     int entrySwitch;
@@ -166,21 +166,20 @@ public:
 };
 
 struct Config{
-    //system data
+ 
     double bhca;
     double holdTime;
 
-    //network links capacity
     int nLines_A_C = 2;
-    int nLines_A_D = 13;
-    int nLines_B_D = 68;
+    int nLines_A_D = 31;
+    int nLines_B_D = 37;
     int nLines_D_E = 2;
-    int nLines_D_F = 67;
-    int nLines_C_E = 8;
-    int nLines_E_F = 8;
-    int nLines_F_CC = 73;
+    int nLines_D_F = 58;
+    int nLines_C_E = 37;
+    int nLines_E_F = 37;
+    int nLines_F_CC = 107;
 
-    //simulation
+
     double simulationTime;
 
     int nOperadores;
@@ -191,22 +190,26 @@ CallCenter callcenter;
 CSwitch network[6];
 
 struct StateData{
-    long totalCalls;
-    long blockedCalls;
+    long TodasChamadas;
+    long allBlockedCall;
 
     double carriedServiceTime;
     double reqServiceTime;
 
     int ocuppiedLines;
-    //int operadoresOcupados;
-    //int chamadasEspera;
+    
+
+    int AreaOcupadasCh =0;   
+    double lastQueueChangeTime =0;   
+    double totalServiceTime=0;   
+    double totalWaitTime =0;       
+    int MedioOper =0;     
+
+ 
 } stateData;
 
 
-/////////////////////////////////////////////////////////////////////////////////
-//Random variable generation
 
-//random number generator U(0,1)
 float urand(){
 
     float u;
@@ -216,31 +219,28 @@ float urand(){
     return u;
 }
 
-//exponential number generation
 float expon(float media){
     return (float)(-media * log(urand()));
 }
 
-//integer number generator U(Min,Max)
 int intRand(int min, int max){
     float u = urand();
 
     return min + (u * (max - min + 1));
 }
 
-//returns the starting channel based on a percentage given by the professor(c1:35 c2:30 c3:35)
-int channelSelect() {
+int channelSelect(int A, int B, int C, int PA, int PB, int PC) {
 
-    int perc = intRand(0, 100);
-    int channel2 = 30;
-
-    if (perc <= channel2) return 1;
-    else {
-        int fifthyf = intRand(0, 1);
-        if (fifthyf == 0) return 0;
-        else return 2;
-    }
+    int randNumber = rand() % 100 + 1;
+    if (randNumber <= PA)
+        return A;
+    if (randNumber <= (PA + PB))
+        return B;
+    else
+        return C;
 }
+
+
 
 
 void Initialize(){
@@ -252,38 +252,41 @@ void Initialize(){
     network[1] = CSwitch('B', config.nLines_B_D, &(network[3]));
     network[0] = CSwitch('A', config.nLines_A_D, &(network[3]), config.nLines_A_C, &(network[2]));
 
-    //configuration initialization
-    config.bhca = 1080; //2000      (1 (35%) -> 378   2 (30%) -> 324     3 (35%) -> 378)
-    config.holdTime = 190;  //500
-    config.nOperadores = 60;
+    
+    config.bhca = 1080;
+    config.holdTime = 190; 
+    config.nOperadores = 63;
 
-    config.simulationTime = 24 * 60 * 60; //24 hours
+    config.simulationTime = 24 * 60 * 60;
 
-    //state data initialization
+    
     ZeroMemory(&stateData, sizeof(stateData));
 
-    //schedule first setup event
+    
     eventManager.AddEvent(new CEvent(expon(3600.0 / config.bhca), SETUP));
 }
 
 
 void Setup(CEvent* pEvent){
-    //schedule next setup event
+   
     eventManager.AddEvent(new CEvent(pEvent->m_time + expon(3600.0 / config.bhca), SETUP));
 
-    //current call
+  
     CallData* pNewCall = new CallData;
 
-    pNewCall->serviceTime = expon(config.holdTime);//generate call duration
+    pNewCall->serviceTime = expon(config.holdTime);
     pNewCall->startTime = pEvent->m_time;
-    pNewCall->entrySwitch = channelSelect();//intRand(0, 2);//geraçao de chamadas
-    pNewCall->callNumber = stateData.totalCalls;
+    pNewCall->entrySwitch = channelSelect(0, 1, 2, 35, 30, 35);
+    pNewCall->callNumber = stateData.TodasChamadas;
 
-    stateData.totalCalls++;
+    stateData.TodasChamadas++;
 
     if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route)){
 
         if (config.nOperadores == callcenter.GetOper()) {
+            stateData.AreaOcupadasCh += callcenter.getBufferSize() * (pEvent->m_time - stateData.lastQueueChangeTime);
+            stateData.MedioOper += callcenter.GetOper() * (pEvent->m_time - stateData.lastQueueChangeTime);
+            stateData.lastQueueChangeTime = pEvent->m_time;
             callcenter.bPush(pNewCall);
             callcenter.plusEspera();
         }
@@ -294,14 +297,8 @@ void Setup(CEvent* pEvent){
             stateData.reqServiceTime += pNewCall->serviceTime;
         }
     }
-    else stateData.blockedCalls++;
+    else stateData.allBlockedCall++;
 
-    outGlobalFile << pEvent->m_time << '\t' << // Tempo da Simulação
-    stateData.reqServiceTime / pEvent->m_time << '\t' << // Erlang A
-    stateData.carriedServiceTime / pEvent->m_time << '\t' << // Tempo de Chamada
-    (float)(stateData.blockedCalls) / stateData.totalCalls << '\t' << // Probabilidade de Bloqueio (Erlang B)
-    callcenter.getEspera() << '\t' << // Chamadas Totais em Espera
-    (config.nOperadores - callcenter.GetOper()) << '\n'; // Número de Operadores Livres
 }
 
 void Release(CEvent* pEvent){
@@ -310,8 +307,10 @@ void Release(CEvent* pEvent){
     network[pCall->entrySwitch].ReleaseLine(0, pCall, pEvent->m_time);
 
     if(callcenter.getBufferSize() > 0) {
-
+        stateData.AreaOcupadasCh += callcenter.getBufferSize() /(pEvent->m_time - stateData.lastQueueChangeTime);
+        stateData.MedioOper += callcenter.GetOper() * (pEvent->m_time - stateData.lastQueueChangeTime);
         CallData* call = callcenter.bPull();
+        stateData.totalWaitTime += (pEvent->m_time - call->startTime);
         eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
         stateData.reqServiceTime += call->serviceTime;
     }
@@ -345,6 +344,19 @@ void Run(){
     delete pEvent;
 }
 
+void resutl() {
+        double probabilidadeBloqueioCh = (double)stateData.allBlockedCall / stateData.TodasChamadas; //
+        double Trafico_Ao = ((config.bhca / 3600) * config.holdTime); //
+        dadosSistema << "Trafego oferecido (A) = " << ((config.bhca / 3600) * config.holdTime) << '\n' <<
+        "Probabilidade de Bloqueio (B) = " << (double)stateData.allBlockedCall / stateData.TodasChamadas << '\n' <<
+        "Trafego Transportado (Ao) =" << (1 - probabilidadeBloqueioCh) * Trafico_Ao << '\n' <<
+        "Probabilidade de Espera =" << (double)callcenter.getEspera() / stateData.TodasChamadas << '\n' <<
+        "Numero medio de chamadas em espera =" << stateData.AreaOcupadasCh << '\n' <<
+        "Tempo de espera =" << stateData.totalWaitTime << '\n' <<
+        "Duração media de chamadas =" << stateData.reqServiceTime / (stateData.TodasChamadas - stateData.allBlockedCall) << '\n' <<
+        "Numeros medido de operadores ocupados =" << stateData.MedioOper / config.simulationTime << '\n';
+
+}
 
 int main(){
     std::cout << "Starting Simulation!\n";
@@ -352,15 +364,8 @@ int main(){
     std::cout << "Running Simulation...\n";
     Run();
     std::cout << "Simulation stopped!\n";
+
+    resutl();
+    
 }
 
-// Run program: Ctrl + F5 or Debug > Start Without Debugging menu
-// Debug program: F5 or Debug > Start Debugging menu
-
-// Tips for Getting Started: 
-//   1. Use the Solution Explorer window to add/manage files
-//   2. Use the Team Explorer window to connect to source control
-//   3. Use the Output window to see build output and other messages
-//   4. Use the Error List window to view errors
-//   5. Go to Project > Add New Item to create new code files, or Project > Add Existing Item to add existing code files to the project
-//   6. In the future, to open this project again, go to File > Open > Project and select the .sln file
