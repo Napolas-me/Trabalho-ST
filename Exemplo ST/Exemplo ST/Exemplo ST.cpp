@@ -100,13 +100,13 @@ public:
 
     CallData* bPull() {
 
-        CallData* data;
-        Numero_Fila_espera--;
-        lRemHead(&head, &tail, &data);
         /*CallData* ret = &(*Buffer[idxPull]);
         free(Buffer[idxPull]);
         idxPull++;*/
 
+        CallData* data;
+        lRemHead(&head, &tail, &data);
+        Numero_Fila_espera--;
         return data;
     }
 };
@@ -207,29 +207,26 @@ public:
     }
 };
 
-
-///CallCenter callcenter;
-
 struct Config
 {
     //system data
     double bhca;
     double holdTime;
-    int nLines;
+    //int nLines;
 
     //network links capacity
-    int nLines_A_C = 40;
-    int nLines_A_D = 40;
-    int nLines_B_D = 40;
-    int nLines_D_E = 40;
-    int nLines_D_F = 40;
-    int nLines_C_E = 40;
-    int nLines_E_F = 40;
-    int nLines_F_CC = 810;
+    int nLines_A_C = 2;
+    int nLines_A_D = 10;
+    int nLines_B_D = 11;
+    int nLines_D_E = 2;
+    int nLines_D_F = 15;
+    int nLines_C_E = 12;
+    int nLines_E_F = 12;
+    int nLines_F_CC = 30;
     //simulation
     double simulationTime;
 
-    int nOperadores = 70;
+    int nOperadores = 30;
 } config;
 
 CallCenter callcenter = CallCenter(config.nOperadores);
@@ -303,7 +300,7 @@ void Initialize()
     //configuration initialization
     config.bhca = 1080; //2000      (1 (35%) -> 378   2 (30%) -> 324     3 (35%) -> 378)
     config.holdTime = 190;  //500
-    config.nLines = 70;     //55
+    //config.nLines = 70;     //55
 
     config.simulationTime = 24 * 60 * 60; //24 hours
 
