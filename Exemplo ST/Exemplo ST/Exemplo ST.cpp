@@ -7,6 +7,7 @@
 CEventManager eventManager;
 
 std::ofstream outGlobalFile("globalResults.txt");
+std::ofstream outGlobalBlock("globalBlock.txt");
 
 struct CallData
 {
@@ -216,13 +217,13 @@ struct Config
 
     //network links capacity
     int nLines_A_C = 2;
-    int nLines_A_D = 10;
-    int nLines_B_D = 11;
+    int nLines_A_D = 50;
+    int nLines_B_D = 50;
     int nLines_D_E = 2;
-    int nLines_D_F = 15;
-    int nLines_C_E = 12;
-    int nLines_E_F = 12;
-    int nLines_F_CC = 30;
+    int nLines_D_F = 2;
+    int nLines_C_E = 10;
+    int nLines_E_F = 2;
+    int nLines_F_CC = 20;
     //simulation
     double simulationTime;
 
@@ -347,6 +348,7 @@ void Setup(CEvent* pEvent)
     }
     else {
         stateData.blockedCalls++;
+        outGlobalBlock << stateData.blockedCalls << '\n';
     }
     outGlobalFile << pEvent->m_time << '\t' <<
         stateData.reqServiceTime / pEvent->m_time << '\t' <<
