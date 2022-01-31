@@ -1,15 +1,14 @@
-// Exemplo ST.cpp : This file contains the 'main' function. Program execution begins and ends there.
-//
 #include <iostream>
 #include <fstream>
 #include "CEvent.h"
 #include <stdlib.h>
+#include <list>
+
 CEventManager eventManager;
 
 std::ofstream outGlobalFile("globalResults.txt");
 
-struct CallData
-{
+struct CallData{
     long callNumber;
     int entrySwitch;
     int route[4];
@@ -18,103 +17,63 @@ struct CallData
     double serviceTime;
 };
 
-typedef struct lNode {
-    struct lNode* next;
-    CallData* calldata;
-} LNode;
+class CallCenter{
 
-void lInsTail(LNode** hp, LNode** tp, CallData* call) {
-    LNode* n = (lNode*)malloc(sizeof *n);
-    n->calldata = call;
-    n->next = NULL;
-    if (*hp == NULL)
-        *hp = n;
-    else
-        (*tp)->next = n;
-    *tp = n;
-}
-
-int lRemHead(LNode** hp, LNode** tp, CallData** call) {
-    if (*hp == NULL)
-        return 0;
-    LNode* p = *hp;
-    *call = p->calldata;
-    *hp = p->next;
-    if (*hp == NULL)
-        *tp = NULL;
-    free(p);
-    return 1;
-}
-
-class CallCenter {
-
-    int operadores;
-    int Numero_Fila_espera;
-    LNode* head = NULL;
-    LNode* tail = NULL;
-    //int idxPull = 0;
-    //int idxPush = 0;
-    //CallData* Buffer = new CallData;
-    //boolean callCenter = false;
+    CList<CallData*, CallData*> Buffer;
+    int nOper;
+    int espera;
 
 public:
-    CallCenter(int NumOperadores) {
-        this->operadores = NumOperadores;
-        this->Numero_Fila_espera = 0;
-        //this->idxPull = 0;
-        //this->idxPush = 0;
-    }
-    
-    void DecrementarOperadores() {
-        operadores--;
-    }
 
-    void IncrementarOperadores() {
-        operadores++;
-    }
-    int getEspera() {
-        return Numero_Fila_espera;
-    }
-
-    int getOperadores() {
-        return operadores;
-    }
-
-    void bPush(CallData* data) {
-      
-        /*if (Numero_Fila_espera == 0)
-        {
-            //Buffer = (CallData*)malloc(sizeof(CallData));
-            //Buffer[idxPush] = data;
+    CallCenter(){
+        nOper = 0;
+        espera = 0;
+        while (!Buffer.IsEmpty()) {
+            delete Buffer.RemoveHead();
         }
-        else {
-            Buffer = (CallData*)realloc(Buffer, sizeof(CallData) * (idxPush - idxPull));
-            *Buffer[idxPush] = data;
-        }*/
-        //idxPush++;
-
-        lInsTail(&head, &tail, data);
-        Numero_Fila_espera++;
+    }
+    void bPush(CallData* data){
+        Buffer.AddTail(data);
     }
 
+    CallData* bPull(){
 
-    CallData* bPull() {
-
-        CallData* data;
-        Numero_Fila_espera--;
-        lRemHead(&head, &tail, &data);
-        /*CallData* ret = &(*Buffer[idxPull]);
-        free(Buffer[idxPull]);
-        idxPull++;*/
-
+        CallData* data = Buffer.GetHead();
+        Buffer.RemoveHead();
+        
         return data;
+    }
+
+    int getBufferSize() {
+        return Buffer.GetSize();
+    }
+
+    int getEspera() {
+        return espera;
+    }
+
+    int GetOper() {
+        return nOper;
+    }
+
+    void plusOper() {
+        nOper++;
+    }
+    void lessOper() {
+        nOper--;
+    }
+
+    void plusEspera() {
+        espera++;
+    }
+    void lessEspera() {
+        espera--;
     }
 };
 
 class CSwitch;
 
-struct SwitchLink
-{
+struct SwitchLink{
     int numLines;
     int occupiedLines;
     double carriedCallsTime;
@@ -122,8 +81,7 @@ struct SwitchLink
     CSwitch* pNextSwitch;
 };
 
-class CSwitch
-{
+class CSwitch{
     char name;
     long blockedCalls;
     long totalCalls;
@@ -133,14 +91,15 @@ class CSwitch
 
     std::ofstream outFile;
 public:
-    CSwitch() {
+
+    CSwitch(){
         blockedCalls = totalCalls = 0;
 
         memset(&(outLinks), 0, sizeof(outLinks));
         blockedCalls = totalCalls = 0;
     };
 
-    CSwitch(char cName, int nlines1, CSwitch* pSwitch1, int nlines2 = 0, CSwitch* pSwitch2 = NULL) {
+    CSwitch(char cName, int nlines1, CSwitch* pSwitch1, int nlines2 = 0, CSwitch* pSwitch2 = NULL){
         name = cName;
 
         nLinks = (nlines2 == 0 ? 1 : 2);
@@ -161,17 +120,14 @@ public:
         outFile.open(fileName, std::ofstream::out);
     }
 
-     boolean RequestLine(int hop, int route[4]) {
+     boolean RequestLine(int hop, int route[4]){
         totalCalls++;
-        int i;
-        for (i = 0; i < nLinks; i++)
-        {
-            if (outLinks[i].occupiedLines < outLinks[i].numLines)
-            {
+
+        for (int i = 0; i < nLinks; i++){
+            if (outLinks[i].occupiedLines < outLinks[i].numLines){
+
                 if (outLinks[i].pNextSwitch != NULL) {
-                    if (!(outLinks[i].pNextSwitch->RequestLine(hop + 1, route))) {  
-                        return false;
-                    }
+                    if (!(outLinks[i].pNextSwitch->RequestLine(hop + 1, route))) return false;
                 }
      
                 outLinks[i].occupiedLines++;
@@ -184,8 +140,8 @@ public:
         return false;
     };
 
-    void ReleaseLine(int hop, CallData* pCall, double currentTime)
-    {
+    void ReleaseLine(int hop, CallData* pCall, double currentTime){
+
         if (outLinks[pCall->route[hop]].pNextSwitch != NULL) outLinks[pCall->route[hop]].pNextSwitch->ReleaseLine(hop + 1, pCall, currentTime);
         
         outLinks[pCall->route[hop]].occupiedLines--;
@@ -193,50 +149,48 @@ public:
         outLinks[pCall->route[hop]].carriedCallsTime += (currentTime - pCall->startTime);
     };
 
-    void WriteResults(double time)
-    {
+    void WriteResults(double time){
+
         outFile << time << '\t' <<
-            totalCalls << '\t' << blockedCalls << '\t' <<
-            ((double)blockedCalls) / totalCalls << '\t';
-        for (int i = 0; i < nLinks; i++)
-        {
+        totalCalls << '\t' <<
+        blockedCalls << '\t' <<
+        ((double)blockedCalls) / totalCalls << '\t';
+
+        for (int i = 0; i < nLinks; i++){
             outFile << outLinks[i].occupiedLines << '\t' <<
-                outLinks[i].carriedCallsTime / time << '\t';
+            outLinks[i].carriedCallsTime / time << '\t';
         }
+
         outFile << '\n';
     }
 };
 
-
-///CallCenter callcenter;
-
-struct Config
-{
+struct Config{
     //system data
     double bhca;
     double holdTime;
-    int nLines;
 
     //network links capacity
-    int nLines_A_C = 40;
-    int nLines_A_D = 40;
-    int nLines_B_D = 40;
-    int nLines_D_E = 40;
-    int nLines_D_F = 40;
-    int nLines_C_E = 40;
-    int nLines_E_F = 40;
-    int nLines_F_CC = 810;
+    int nLines_A_C = 2;
+    int nLines_A_D = 13;
+    int nLines_B_D = 68;
+    int nLines_D_E = 2;
+    int nLines_D_F = 67;
+    int nLines_C_E = 8;
+    int nLines_E_F = 8;
+    int nLines_F_CC = 73;
+
     //simulation
     double simulationTime;
 
-    int nOperadores = 70;
+    int nOperadores;
 } config;
 
-CallCenter callcenter = CallCenter(config.nOperadores);
+CallCenter callcenter;
+
 CSwitch network[6];
 
-struct StateData
-{
+struct StateData{
     long totalCalls;
     long blockedCalls;
 
@@ -244,6 +198,8 @@ struct StateData
     double reqServiceTime;
 
     int ocuppiedLines;
+    //int operadoresOcupados;
+    //int chamadasEspera;
 } stateData;
 
 
@@ -251,8 +207,8 @@ struct StateData
 //Random variable generation
 
 //random number generator U(0,1)
-float urand()
-{
+float urand(){
+
     float u;
     do {
         u = ((float)rand()) / (float)RAND_MAX;
@@ -261,14 +217,12 @@ float urand()
 }
 
 //exponential number generation
-float expon(float media)
-{
+float expon(float media){
     return (float)(-media * log(urand()));
 }
 
 //integer number generator U(Min,Max)
-int intRand(int min, int max)
-{
+int intRand(int min, int max){
     float u = urand();
 
     return min + (u * (max - min + 1));
@@ -289,9 +243,7 @@ int channelSelect() {
 }
 
 
-void Initialize()
-{
-
+void Initialize(){
     //Network initialization
     network[5] = CSwitch('F', config.nLines_F_CC, NULL);
     network[4] = CSwitch('E', config.nLines_E_F, &(network[5]));
@@ -303,7 +255,7 @@ void Initialize()
     //configuration initialization
     config.bhca = 1080; //2000      (1 (35%) -> 378   2 (30%) -> 324     3 (35%) -> 378)
     config.holdTime = 190;  //500
-    config.nLines = 70;     //55
+    config.nOperadores = 60;
 
     config.simulationTime = 24 * 60 * 60; //24 hours
 
@@ -315,8 +267,7 @@ void Initialize()
 }
 
 
-void Setup(CEvent* pEvent)
-{
+void Setup(CEvent* pEvent){
     //schedule next setup event
     eventManager.AddEvent(new CEvent(pEvent->m_time + expon(3600.0 / config.bhca), SETUP));
 
@@ -329,62 +280,59 @@ void Setup(CEvent* pEvent)
     pNewCall->callNumber = stateData.totalCalls;
 
     stateData.totalCalls++;
-    stateData.reqServiceTime += pNewCall->serviceTime;
 
+    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route)){
 
-    if (network[pNewCall->entrySwitch].RequestLine(0, pNewCall->route))
-    {
-        if (callcenter.getOperadores() > 0) {
-            if (callcenter.getEspera() > 0) {
-
-                CallData *call = callcenter.bPull();
-                callcenter.DecrementarOperadores();
-                eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
-            }
-            else {
-                callcenter.DecrementarOperadores();
-                eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
-            }
+        if (config.nOperadores == callcenter.GetOper()) {
+            callcenter.bPush(pNewCall);
+            callcenter.plusEspera();
         }
-        else callcenter.bPush(pNewCall);
+
+        else{
+            callcenter.plusOper();
+            eventManager.AddEvent(new CEvent(pEvent->m_time + pNewCall->serviceTime, RELEASE, pNewCall));
+            stateData.reqServiceTime += pNewCall->serviceTime;
+        }
     }
-    else {
-        stateData.blockedCalls++;
-    }
-    outGlobalFile << pEvent->m_time << '\t' <<
-        stateData.reqServiceTime / pEvent->m_time << '\t' <<
-        stateData.carriedServiceTime / pEvent->m_time << '\t' <<
-        (float)(stateData.blockedCalls) / stateData.totalCalls << '\t' <<
-        callcenter.getEspera() << '\t' <<
-        callcenter.getOperadores() << '\n';
+    else stateData.blockedCalls++;
+
+    outGlobalFile << pEvent->m_time << '\t' << // Tempo da Simulação
+    stateData.reqServiceTime / pEvent->m_time << '\t' << // Erlang A
+    stateData.carriedServiceTime / pEvent->m_time << '\t' << // Tempo de Chamada
+    (float)(stateData.blockedCalls) / stateData.totalCalls << '\t' << // Probabilidade de Bloqueio (Erlang B)
+    callcenter.getEspera() << '\t' << // Chamadas Totais em Espera
+    (config.nOperadores - callcenter.GetOper()) << '\n'; // Número de Operadores Livres
 }
 
+void Release(CEvent* pEvent){
+    CallData* pCall = (CallData*)(pEvent->GetData());
 
-void Release(CEvent* pEvent)
-{
-    callcenter.IncrementarOperadores();
-
-    CallData* pCall = (CallData*)(pEvent->GetData()); 
     network[pCall->entrySwitch].ReleaseLine(0, pCall, pEvent->m_time);
-    for (int i = 0; i < 6; i++)
-        network[i].WriteResults(pEvent->m_time);
-    stateData.carriedServiceTime += (pEvent->m_time - pCall->startTime);
-    
 
+    if(callcenter.getBufferSize() > 0) {
+
+        CallData* call = callcenter.bPull();
+        eventManager.AddEvent(new CEvent(pEvent->m_time + call->serviceTime, RELEASE, call));
+        stateData.reqServiceTime += call->serviceTime;
+    }
+    callcenter.lessOper();
+    
+    for (int i = 0; i < 6; i++) network[i].WriteResults(pEvent->m_time);
+
+    stateData.carriedServiceTime += (pEvent->m_time - pCall->startTime);
 }
 
-void Run()
-{
+void Run(){
     CEvent* pEvent = NULL;
     pEvent = eventManager.NextEvent();
 
-    while (pEvent->m_time < config.simulationTime)
-    {
-        switch (pEvent->m_type)
-        {
+    while (pEvent->m_time < config.simulationTime){
+        switch (pEvent->m_type){
+
         case SETUP:
             Setup(pEvent);
             break;
+
         case RELEASE:
             Release(pEvent);
             break;
@@ -398,8 +346,7 @@ void Run()
 }
 
 
-int main()
-{
+int main(){
     std::cout << "Starting Simulation!\n";
     Initialize();
     std::cout << "Running Simulation...\n";
