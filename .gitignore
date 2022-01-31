@@ -31,3 +31,8 @@ CL.write.1.tlog
 link.write.1.tlog
 
 
+*.txt
+Exemplo ST/.vs/Exemplo ST/v17/.suo
+*.db
+*.ilk
+*.tlog
